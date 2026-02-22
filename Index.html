@@ -3,146 +3,252 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon AI Painter</title>
+    <title>Sci-Fi Face Scanner Prank</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; color: white; }
-        .input_video { display: none; }
-        .output_canvas { position: absolute; width: 100vw; height: 100vh; transform: scaleX(-1); }
-        .ui-box {
-            position: absolute; top: 20px; left: 20px; z-index: 10;
-            background: rgba(20, 20, 20, 0.8); padding: 15px; border-radius: 10px;
-            border: 1px solid #333; box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            color: #0f0;
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
         }
-        button {
-            padding: 10px 20px; font-weight: bold; font-size: 16px; background-color: #ff0055;
-            color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%; margin-top: 10px;
-            box-shadow: 0 0 10px #ff0055; transition: 0.3s;
+
+        /* Left Side: Camera aur Scanner */
+        .scanner-container {
+            position: relative;
+            width: 65%;
+            height: 100%;
+            border-right: 3px solid #0f0;
+            box-shadow: inset 0 0 50px rgba(0, 255, 0, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
         }
-        button:hover { background-color: #ff3377; box-shadow: 0 0 20px #ff3377; }
-        .instructions p { margin: 5px 0; font-size: 14px; }
+
+        .input_video {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror effect */
+            opacity: 0.6; /* Thoda dark sci-fi look ke liye */
+        }
+
+        .output_canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+            z-index: 2;
+        }
+
+        /* Scanning Laser Line Animation */
+        .laser {
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background-color: rgba(0, 255, 0, 0.8);
+            box-shadow: 0 0 15px 5px rgba(0, 255, 0, 0.5);
+            top: 0;
+            left: 0;
+            z-index: 3;
+            animation: scan 3s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { top: 0%; }
+            50% { top: 100%; }
+            100% { top: 0%; }
+        }
+
+        /* Right Side: Terminal / Hacker Panel */
+        .terminal-container {
+            width: 35%;
+            padding: 20px;
+            background: rgba(0, 10, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .header {
+            font-size: 24px;
+            border-bottom: 2px dashed #0f0;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 5px #0f0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .blink { animation: blinker 1s linear infinite; color: red; text-shadow: 0 0 10px red; }
+        @keyframes blinker { 50% { opacity: 0; } }
+
+        .terminal-text {
+            font-size: 18px;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            text-shadow: 0 0 3px #0f0;
+        }
+
+        .overlay-grid {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: linear-gradient(rgba(0, 255, 0, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0, 255, 0, 0.1) 1px, transparent 1px);
+            background-size: 30px 30px; z-index: 1; pointer-events: none;
+        }
     </style>
 </head>
 <body>
 
-    <div class="ui-box">
-        <h3 style="margin-top: 0; color: #00ffff; text-shadow: 0 0 10px #00ffff;">Neon Air Canvas 🎨</h3>
-        <div class="instructions">
-            <p>☝️ <b>1 Ungli:</b> Draw Mode (Likhne ke liye)</p>
-            <p>✌️ <b>2 Ungliyan:</b> Move Mode (Haath hatane ke liye)</p>
-        </div>
-        <button onclick="clearCanvas()">Clear Screen</button>
+    <div class="scanner-container">
+        <div class="overlay-grid"></div>
+        <video class="input_video" autoplay playsinline></video>
+        <canvas class="output_canvas"></canvas>
+        <div class="laser" id="laser-line"></div>
     </div>
 
-    <video class="input_video"></video>
-    <canvas class="output_canvas" width="1280" height="720"></canvas>
+    <div class="terminal-container">
+        <div class="header">
+            <span>DATABASE SEARCH</span>
+            <span id="status-indicator">SCANNING...</span>
+        </div>
+        <div class="terminal-text" id="terminal"></div>
+    </div>
 
     <script>
         const videoElement = document.querySelector('.input_video');
         const canvasElement = document.querySelector('.output_canvas');
         const canvasCtx = canvasElement.getContext('2d');
+        const terminalInfo = document.getElementById('terminal');
+        const statusIndicator = document.getElementById('status-indicator');
+        const laser = document.getElementById('laser-line');
 
-        const drawingCanvas = document.createElement('canvas');
-        drawingCanvas.width = 1280;
-        drawingCanvas.height = 720;
-        const drawingCtx = drawingCanvas.getContext('2d');
+        let isLocked = false;
+        let scanTimer = null;
+        let typingStarted = false;
 
-        let prevX = null;
-        let prevY = null;
+        // Jo details aapne batayi thi
+        const targetDetails = [
+            "> ANALYZING BIOMETRICS...",
+            "> CROSS-REFERENCING DATABASE...",
+            "> MATCH FOUND! 99.9% ACCURACY.",
+            " ",
+            "---------------------------------",
+            " IDENTIFICATION DATA",
+            "---------------------------------",
+            " NAME        : Hippo",
+            " AGE         : 30",
+            " ADDRESS     : Killa road nanded,",
+            "               Maharashtra 431602",
+            " MOBILE DEV. : Oneplus",
+            " MOBILE NO.  : 8855931702",
+            "---------------------------------",
+            " ",
+            "> TARGET LOCKED 🔴"
+        ];
 
-        function clearCanvas() {
-            drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+        // Typewriter Effect Function
+        async function typeWriterEffect(lines) {
+            terminalInfo.innerHTML = "";
+            statusIndicator.innerText = "MATCH FOUND";
+            statusIndicator.className = "blink";
+            laser.style.backgroundColor = "rgba(255, 0, 0, 0.8)"; // Laser red ho jayegi
+            laser.style.boxShadow = "0 0 15px 5px rgba(255, 0, 0, 0.5)";
+
+            for (let i = 0; i < lines.length; i++) {
+                let currentLine = lines[i];
+                let lineDiv = document.createElement('div');
+                terminalInfo.appendChild(lineDiv);
+                
+                for (let j = 0; j < currentLine.length; j++) {
+                    lineDiv.innerHTML += currentLine.charAt(j);
+                    // Typing speed
+                    await new Promise(r => setTimeout(r, 30)); 
+                }
+                // Har line ke baad thoda pause
+                await new Promise(r => setTimeout(r, 200)); 
+            }
         }
 
+        // Face Detection Results Handle Karna
         function onResults(results) {
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-            // Andhera effect takay neon glow aur achha dikhe
-            canvasCtx.fillStyle = "rgba(0, 0, 0, 0.6)";
-            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+            if (results.detections.length > 0) {
+                // Face mil gaya
+                const detection = results.detections[0];
+                const box = detection.boundingBox;
 
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                const landmarks = results.multiHandLandmarks[0];
+                // Face ke ird-gird Sci-fi box draw karna
+                const x = box.xCenter * canvasElement.width - (box.width * canvasElement.width) / 2;
+                const y = box.yCenter * canvasElement.height - (box.height * canvasElement.height) / 2;
+                const w = box.width * canvasElement.width;
+                const h = box.height * canvasElement.height;
+
+                canvasCtx.strokeStyle = isLocked ? "#ff0000" : "#00ff00";
+                canvasCtx.lineWidth = 4;
                 
-                // Index aur Middle finger ki positions
-                const indexTip = landmarks[8];
-                const indexPip = landmarks[6]; // Ungli ka beech ka jod
-                const middleTip = landmarks[12];
-                const middlePip = landmarks[10];
+                // Box ke corners banane ka style
+                const cornerLength = 30;
+                canvasCtx.beginPath();
+                // Top-Left
+                canvasCtx.moveTo(x, y + cornerLength); canvasCtx.lineTo(x, y); canvasCtx.lineTo(x + cornerLength, y);
+                // Top-Right
+                canvasCtx.moveTo(x + w - cornerLength, y); canvasCtx.lineTo(x + w, y); canvasCtx.lineTo(x + w, y + cornerLength);
+                // Bottom-Left
+                canvasCtx.moveTo(x, y + h - cornerLength); canvasCtx.lineTo(x, y + h); canvasCtx.lineTo(x + cornerLength, y + h);
+                // Bottom-Right
+                canvasCtx.moveTo(x + w - cornerLength, y + h); canvasCtx.lineTo(x + w, y + h); canvasCtx.lineTo(x + w, y + h - cornerLength);
+                canvasCtx.stroke();
 
-                const x = indexTip.x * canvasElement.width;
-                const y = indexTip.y * canvasElement.height;
-
-                // Gestures Check karna (Agar Tip ka Y, Pip ke Y se chota hai matlab ungli khadi hai)
-                const isIndexUp = indexTip.y < indexPip.y;
-                const isMiddleUp = middleTip.y < middlePip.y;
-
-                if (isIndexUp && !isMiddleUp) {
-                    // 👉 DRAW MODE: Sirf 1 ungli khadi hai
-                    if (prevX != null && prevY != null) {
-                        drawingCtx.beginPath();
-                        drawingCtx.moveTo(prevX, prevY);
-                        drawingCtx.lineTo(x, y);
-                        
-                        // Zabardast Neon Effect Logic
-                        drawingCtx.strokeStyle = '#ffffff'; // Andar ki white line
-                        drawingCtx.lineWidth = 4;
-                        drawingCtx.lineCap = 'round';
-                        drawingCtx.shadowBlur = 25; // Glow badha diya
-                        drawingCtx.shadowColor = '#00ffff'; // Neon Blue Glow
-                        
-                        drawingCtx.stroke();
-                    }
-                    prevX = x;
-                    prevY = y;
-                } else if (isIndexUp && isMiddleUp) {
-                    // ✌️ MOVE MODE: 2 ungliyan khadi hain (Line break karne ke liye)
-                    prevX = null;
-                    prevY = null;
-                    
-                    // User ko dikhane ke liye Move mode mein green circle draw karna
-                    canvasCtx.beginPath();
-                    canvasCtx.arc(x, y, 10, 0, 2 * Math.PI);
-                    canvasCtx.fillStyle = "#00ff00";
-                    canvasCtx.fill();
-                } else {
-                    // Koi aur gesture pe drawing rok dena
-                    prevX = null;
-                    prevY = null;
+                // Face lock hone ka logic (agar 2 seconds tak face frame mein rahe)
+                if (!isLocked && !scanTimer) {
+                    scanTimer = setTimeout(() => {
+                        isLocked = true;
+                        if (!typingStarted) {
+                            typingStarted = true;
+                            typeWriterEffect(targetDetails);
+                        }
+                    }, 2000); // 2 second ka scan time
                 }
-
-                // Haath ki tracking dikhana (thodi transparent)
-                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.2)', lineWidth: 1});
             } else {
-                prevX = null;
-                prevY = null;
+                // Agar face hat jaye toh reset karna (agar lock na hua ho)
+                if (!isLocked) {
+                    clearTimeout(scanTimer);
+                    scanTimer = null;
+                }
             }
-
-            // Mix the drawing on main screen
-            canvasCtx.drawImage(drawingCanvas, 0, 0);
             canvasCtx.restore();
         }
 
-        const hands = new Hands({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        // MediaPipe Face Detection Setup
+        const faceDetection = new FaceDetection({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
         }});
         
-        hands.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.75,
-            minTrackingConfidence: 0.75
+        faceDetection.setOptions({
+            model: 'short',
+            minDetectionConfidence: 0.5
         });
-        hands.onResults(onResults);
+        faceDetection.onResults(onResults);
 
+        // Start Camera
         const camera = new Camera(videoElement, {
             onFrame: async () => {
-                await hands.send({image: videoElement});
+                await faceDetection.send({image: videoElement});
             },
             width: 1280,
             height: 720
