@@ -3,48 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Virtual Painter</title>
+    <title>Neon AI Painter</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #111;
-            font-family: sans-serif;
-        }
-        /* Video aur canvas ko screen par set karna aur mirror effect dena */
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; color: white; }
         .input_video { display: none; }
-        .output_canvas {
-            position: absolute;
-            width: 100vw;
-            height: 100vh;
-            transform: scaleX(-1); /* Screen ko mirror karne ke liye */
-        }
-        .controls {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 10;
+        .output_canvas { position: absolute; width: 100vw; height: 100vh; transform: scaleX(-1); }
+        .ui-box {
+            position: absolute; top: 20px; left: 20px; z-index: 10;
+            background: rgba(20, 20, 20, 0.8); padding: 15px; border-radius: 10px;
+            border: 1px solid #333; box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
         }
         button {
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #ff4757;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            padding: 10px 20px; font-weight: bold; font-size: 16px; background-color: #ff0055;
+            color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%; margin-top: 10px;
+            box-shadow: 0 0 10px #ff0055; transition: 0.3s;
         }
-        button:hover { background-color: #ff6b81; }
+        button:hover { background-color: #ff3377; box-shadow: 0 0 20px #ff3377; }
+        .instructions p { margin: 5px 0; font-size: 14px; }
     </style>
 </head>
 <body>
 
-    <div class="controls">
+    <div class="ui-box">
+        <h3 style="margin-top: 0; color: #00ffff; text-shadow: 0 0 10px #00ffff;">Neon Air Canvas 🎨</h3>
+        <div class="instructions">
+            <p>☝️ <b>1 Ungli:</b> Draw Mode (Likhne ke liye)</p>
+            <p>✌️ <b>2 Ungliyan:</b> Move Mode (Haath hatane ke liye)</p>
+        </div>
         <button onclick="clearCanvas()">Clear Screen</button>
     </div>
 
@@ -56,7 +45,6 @@
         const canvasElement = document.querySelector('.output_canvas');
         const canvasCtx = canvasElement.getContext('2d');
 
-        // Drawing save rakhne ke liye ek alag hidden canvas
         const drawingCanvas = document.createElement('canvas');
         drawingCanvas.width = 1280;
         drawingCanvas.height = 720;
@@ -65,74 +53,93 @@
         let prevX = null;
         let prevY = null;
 
-        // Screen saaf karne ka function
         function clearCanvas() {
             drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
         }
 
-        // Jab MediaPipe ko haath milta hai tab ye function run hota hai
         function onResults(results) {
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            
-            // Webcam ka video draw karna
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            // Andhera effect takay neon glow aur achha dikhe
+            canvasCtx.fillStyle = "rgba(0, 0, 0, 0.6)";
+            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
                 
-                // Landmark 8 index finger (shahadat ki ungli) ka tip hota hai
-                const indexTip = landmarks[8]; 
-                
+                // Index aur Middle finger ki positions
+                const indexTip = landmarks[8];
+                const indexPip = landmarks[6]; // Ungli ka beech ka jod
+                const middleTip = landmarks[12];
+                const middlePip = landmarks[10];
+
                 const x = indexTip.x * canvasElement.width;
                 const y = indexTip.y * canvasElement.height;
 
-                // Drawing Logic
-                if (prevX != null && prevY != null) {
-                    drawingCtx.beginPath();
-                    drawingCtx.moveTo(prevX, prevY);
-                    drawingCtx.lineTo(x, y);
-                    
-                    // Style aur Glow effect
-                    drawingCtx.strokeStyle = '#FFD700'; // Gold Color
-                    drawingCtx.lineWidth = 6;
-                    drawingCtx.lineCap = 'round';
-                    drawingCtx.shadowBlur = 15;
-                    drawingCtx.shadowColor = '#FFD700';
-                    
-                    drawingCtx.stroke();
-                }
-                prevX = x;
-                prevY = y;
+                // Gestures Check karna (Agar Tip ka Y, Pip ke Y se chota hai matlab ungli khadi hai)
+                const isIndexUp = indexTip.y < indexPip.y;
+                const isMiddleUp = middleTip.y < middlePip.y;
 
-                // Haath par lines aur dots draw karna (video jaisa effect)
-                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#ffffff', lineWidth: 2});
-                drawLandmarks(canvasCtx, landmarks, {color: '#FFD700', lineWidth: 1, radius: 3});
+                if (isIndexUp && !isMiddleUp) {
+                    // 👉 DRAW MODE: Sirf 1 ungli khadi hai
+                    if (prevX != null && prevY != null) {
+                        drawingCtx.beginPath();
+                        drawingCtx.moveTo(prevX, prevY);
+                        drawingCtx.lineTo(x, y);
+                        
+                        // Zabardast Neon Effect Logic
+                        drawingCtx.strokeStyle = '#ffffff'; // Andar ki white line
+                        drawingCtx.lineWidth = 4;
+                        drawingCtx.lineCap = 'round';
+                        drawingCtx.shadowBlur = 25; // Glow badha diya
+                        drawingCtx.shadowColor = '#00ffff'; // Neon Blue Glow
+                        
+                        drawingCtx.stroke();
+                    }
+                    prevX = x;
+                    prevY = y;
+                } else if (isIndexUp && isMiddleUp) {
+                    // ✌️ MOVE MODE: 2 ungliyan khadi hain (Line break karne ke liye)
+                    prevX = null;
+                    prevY = null;
+                    
+                    // User ko dikhane ke liye Move mode mein green circle draw karna
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(x, y, 10, 0, 2 * Math.PI);
+                    canvasCtx.fillStyle = "#00ff00";
+                    canvasCtx.fill();
+                } else {
+                    // Koi aur gesture pe drawing rok dena
+                    prevX = null;
+                    prevY = null;
+                }
+
+                // Haath ki tracking dikhana (thodi transparent)
+                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.2)', lineWidth: 1});
             } else {
-                // Agar haath screen se hat jaye toh line break kar dena
                 prevX = null;
                 prevY = null;
             }
 
-            // Final drawing ko main screen par dikhana
+            // Mix the drawing on main screen
             canvasCtx.drawImage(drawingCanvas, 0, 0);
             canvasCtx.restore();
         }
 
-        // MediaPipe Hands setup karna
         const hands = new Hands({locateFile: (file) => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
         }});
         
         hands.setOptions({
-            maxNumHands: 1, // Ek waqt mein ek haath track karega
+            maxNumHands: 1,
             modelComplexity: 1,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.7
+            minDetectionConfidence: 0.75,
+            minTrackingConfidence: 0.75
         });
         hands.onResults(onResults);
 
-        // Webcam on karna
         const camera = new Camera(videoElement, {
             onFrame: async () => {
                 await hands.send({image: videoElement});
