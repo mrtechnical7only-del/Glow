@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Virtual Painter</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+            font-family: sans-serif;
+        }
+        /* Video aur canvas ko screen par set karna aur mirror effect dena */
+        .input_video { display: none; }
+        .output_canvas {
+            position: absolute;
+            width: 100vw;
+            height: 100vh;
+            transform: scaleX(-1); /* Screen ko mirror karne ke liye */
+        }
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #ff4757;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        button:hover { background-color: #ff6b81; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <button onclick="clearCanvas()">Clear Screen</button>
+    </div>
+
+    <video class="input_video"></video>
+    <canvas class="output_canvas" width="1280" height="720"></canvas>
+
+    <script>
+        const videoElement = document.querySelector('.input_video');
+        const canvasElement = document.querySelector('.output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+
+        // Drawing save rakhne ke liye ek alag hidden canvas
+        const drawingCanvas = document.createElement('canvas');
+        drawingCanvas.width = 1280;
+        drawingCanvas.height = 720;
+        const drawingCtx = drawingCanvas.getContext('2d');
+
+        let prevX = null;
+        let prevY = null;
+
+        // Screen saaf karne ka function
+        function clearCanvas() {
+            drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+        }
+
+        // Jab MediaPipe ko haath milta hai tab ye function run hota hai
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // Webcam ka video draw karna
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                
+                // Landmark 8 index finger (shahadat ki ungli) ka tip hota hai
+                const indexTip = landmarks[8]; 
+                
+                const x = indexTip.x * canvasElement.width;
+                const y = indexTip.y * canvasElement.height;
+
+                // Drawing Logic
+                if (prevX != null && prevY != null) {
+                    drawingCtx.beginPath();
+                    drawingCtx.moveTo(prevX, prevY);
+                    drawingCtx.lineTo(x, y);
+                    
+                    // Style aur Glow effect
+                    drawingCtx.strokeStyle = '#FFD700'; // Gold Color
+                    drawingCtx.lineWidth = 6;
+                    drawingCtx.lineCap = 'round';
+                    drawingCtx.shadowBlur = 15;
+                    drawingCtx.shadowColor = '#FFD700';
+                    
+                    drawingCtx.stroke();
+                }
+                prevX = x;
+                prevY = y;
+
+                // Haath par lines aur dots draw karna (video jaisa effect)
+                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#ffffff', lineWidth: 2});
+                drawLandmarks(canvasCtx, landmarks, {color: '#FFD700', lineWidth: 1, radius: 3});
+            } else {
+                // Agar haath screen se hat jaye toh line break kar dena
+                prevX = null;
+                prevY = null;
+            }
+
+            // Final drawing ko main screen par dikhana
+            canvasCtx.drawImage(drawingCanvas, 0, 0);
+            canvasCtx.restore();
+        }
+
+        // MediaPipe Hands setup karna
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+        
+        hands.setOptions({
+            maxNumHands: 1, // Ek waqt mein ek haath track karega
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+        hands.onResults(onResults);
+
+        // Webcam on karna
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 1280,
+            height: 720
+        });
+        camera.start();
+    </script>
+</body>
+</html>
